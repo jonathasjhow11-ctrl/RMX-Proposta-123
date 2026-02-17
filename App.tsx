@@ -20,7 +20,12 @@ import {
   TrendingUp,
   ChevronRight,
   UserCheck,
-  BellRing
+  BellRing,
+  Download,
+  Eye,
+  Trophy,
+  History,
+  Ban
 } from 'lucide-react';
 import { Proposal, ViewState, ProposalStatus } from './types';
 import { RaimundixLogo } from './constants';
@@ -113,14 +118,24 @@ export default function App() {
   const stats = useMemo(() => {
     const active = proposals.filter(p => p.status === 'aberto' || p.status === 'em_andamento');
     const closed = proposals.filter(p => p.status === 'fechado');
+    const cancelled = proposals.filter(p => p.status === 'cancelado');
+    
     const calculateTotal = (list: Proposal[]) => 
       list.reduce((acc, p) => acc + p.items.reduce((sum, item) => sum + item.total, 0), 0);
+    
     const followUpPending = active.filter(p => (Date.now() - p.lastFollowUp) / (1000 * 60 * 60 * 24) > 7);
+    
     return {
       totalActive: calculateTotal(active),
       totalClosed: calculateTotal(closed),
+      totalCancelled: calculateTotal(cancelled),
       pendingCount: followUpPending.length,
-      activeCount: active.length
+      counts: {
+        aberto: proposals.filter(p => p.status === 'aberto').length,
+        em_andamento: proposals.filter(p => p.status === 'em_andamento').length,
+        fechado: proposals.filter(p => p.status === 'fechado').length,
+        cancelado: proposals.filter(p => p.status === 'cancelado').length,
+      }
     };
   }, [proposals]);
 
@@ -146,10 +161,11 @@ export default function App() {
   const sendFollowUpMessage = (p: Proposal) => {
     const text = `Olá *${p.client}*, tudo bem?\n\nAqui é o ${p.salesperson || 'responsável'} da *RAIMUNDIX Soluções em Elétrica*.\n\nGostaria de saber se você conseguiu avaliar o orçamento *${p.number}* que enviamos no dia ${p.date}.\n\nSeguimos à disposição para qualquer dúvida ou ajuste no escopo. Aguardamos seu retorno!\n\nAtenciosamente.`;
     const cleanPhone = p.phone.replace(/\D/g, '');
-    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`, '_blank');
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const printProposal = (p: Proposal) => {
+  const getProposalHtml = (p: Proposal) => {
     const totalGeral = p.items.reduce((acc, i) => acc + (i.total || 0), 0);
     const itemsHtml = p.items.map(item => `
       <tr>
@@ -159,7 +175,7 @@ export default function App() {
       </tr>
     `).join('');
 
-    const htmlContent = `
+    return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -211,8 +227,26 @@ export default function App() {
       </body>
       </html>
     `;
+  };
+
+  const printProposal = (p: Proposal) => {
+    const htmlContent = getProposalHtml(p);
     const win = window.open('', '_blank');
     if (win) { win.document.write(htmlContent); win.document.close(); }
+  };
+
+  const downloadProposalFile = (p: Proposal) => {
+    const htmlContent = getProposalHtml(p);
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Orcamento_${p.number}_${p.client.replace(/\s+/g, '_')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotif("Arquivo gerado com sucesso!");
   };
 
   const getStatusColor = (status: ProposalStatus) => {
@@ -310,14 +344,38 @@ export default function App() {
             </div>
           </div>
 
+          {/* DASHBOARD DE STATUS */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
+              <Clock size={16} className="text-yellow-500 mb-2" />
+              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Abertos</h4>
+              <p className="text-xl font-black text-zinc-900">{stats.counts.aberto}</p>
+            </div>
+            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
+              <Zap size={16} className="text-blue-500 mb-2" />
+              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Em Obra</h4>
+              <p className="text-xl font-black text-zinc-900">{stats.counts.em_andamento}</p>
+            </div>
+            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
+              <Trophy size={16} className="text-green-500 mb-2" />
+              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Fechados</h4>
+              <p className="text-xl font-black text-zinc-900">{stats.counts.fechado}</p>
+            </div>
+            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
+              <Ban size={16} className="text-red-400 mb-2" />
+              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Perdidos</h4>
+              <p className="text-xl font-black text-zinc-900">{stats.counts.cancelado}</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4">
-            <div className="bg-zinc-900 p-8 rounded-[2.5rem] shadow-2xl text-white overflow-hidden relative border-b-4 border-yellow-400">
+            <div className="bg-zinc-900 p-8 rounded-[2.5rem] shadow-2xl text-white overflow-hidden relative border-b-8 border-yellow-400">
               <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><TrendingUp size={120} /></div>
               <div className="relative z-10">
-                <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Total em Aberto</h3>
+                <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Pipeline (Abertos + Obras)</h3>
                 <p className="text-4xl font-black italic">{formatCurrency(stats.totalActive)}</p>
                 <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-400">
-                  <Clock size={12} /> {stats.activeCount} negociações ativas
+                  <CheckCircle2 size={12} className="text-green-500" /> Total Fechado: {formatCurrency(stats.totalClosed)}
                 </div>
               </div>
             </div>
@@ -326,74 +384,84 @@ export default function App() {
               <div className="bg-red-50 border border-red-100 p-5 rounded-[2rem] flex items-center gap-4 border-l-8 border-l-red-500">
                 <div className="bg-red-500 text-white p-3 rounded-2xl shadow-lg animate-pulse"><BellRing size={24} /></div>
                 <div>
-                  <p className="text-red-900 font-black text-xs uppercase">Alerta de Follow-up</p>
-                  <p className="text-red-700 text-[10px] font-bold uppercase">{stats.pendingCount} Clientes aguardando retorno há mais de 7 dias.</p>
+                  <p className="text-red-900 font-black text-xs uppercase">Atenção Vendedor</p>
+                  <p className="text-red-700 text-[10px] font-bold uppercase">{stats.pendingCount} Contatos pendentes há mais de 7 dias.</p>
                 </div>
               </div>
             )}
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest px-2">Pipeline de Vendas</h2>
-            {proposals.filter(p => p.status !== 'cancelado').map(p => {
-              const daysSinceFollowUp = Math.floor((Date.now() - p.lastFollowUp) / (1000 * 60 * 60 * 24));
-              const isAlert = daysSinceFollowUp > 7 && (p.status === 'aberto' || p.status === 'em_andamento');
+            <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest px-2">Listagem de Negociações</h2>
+            {proposals.length === 0 ? (
+               <div className="bg-white rounded-[2rem] p-10 text-center border-2 border-dashed border-zinc-100 text-zinc-400 italic font-bold">Sem propostas para exibir.</div>
+            ) : (
+              proposals.map(p => {
+                const daysSinceFollowUp = Math.floor((Date.now() - p.lastFollowUp) / (1000 * 60 * 60 * 24));
+                const isAlert = daysSinceFollowUp > 7 && (p.status === 'aberto' || p.status === 'em_andamento');
 
-              return (
-                <div key={p.id} className={`bg-white rounded-[2.5rem] p-6 shadow-sm border transition-all ${isAlert ? 'border-red-200 bg-red-50/20' : 'border-zinc-100'}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1 overflow-hidden">
-                      <h3 className="font-black text-zinc-900 uppercase truncate mb-1">{p.client}</h3>
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
-                        <span className="bg-zinc-100 px-2 py-0.5 rounded text-zinc-500">{p.number}</span>
-                        <span>{formatCurrency(p.items.reduce((a,b)=>a+b.total,0))}</span>
-                      </div>
-                    </div>
-                    <select 
-                      value={p.status} 
-                      onChange={(e) => updateStatus(p.id, e.target.value as ProposalStatus)}
-                      className={`text-[9px] font-black uppercase py-2 px-3 rounded-xl border-2 outline-none appearance-none cursor-pointer ${getStatusColor(p.status)}`}
-                    >
-                      <option value="aberto">Aberto</option>
-                      <option value="em_andamento">Em Obra</option>
-                      <option value="fechado">Fechado</option>
-                      <option value="cancelado">Perdido</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-4 pt-4 border-t border-zinc-100">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Clock size={12} className={isAlert ? 'text-red-500' : 'text-zinc-300'} />
-                          <span className={`text-[10px] font-bold ${isAlert ? 'text-red-600 font-black' : 'text-zinc-400'}`}>
-                            {daysSinceFollowUp === 0 ? 'Atualizado hoje' : `${isAlert ? 'ATRASADO:' : ''} Há ${daysSinceFollowUp} dias`}
-                          </span>
+                return (
+                  <div key={p.id} className={`bg-white rounded-[2.5rem] p-6 shadow-sm border transition-all ${isAlert ? 'border-red-200 bg-red-50/20' : 'border-zinc-100'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-black text-zinc-900 uppercase truncate mb-1">{p.client}</h3>
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
+                          <span className="bg-zinc-100 px-2 py-0.5 rounded text-zinc-500">{p.number}</span>
+                          <span className="font-black text-zinc-600">{formatCurrency(p.items.reduce((a,b)=>a+b.total,0))}</span>
                         </div>
-                        <span className="text-[10px] font-black text-zinc-400 uppercase">Vendedor: {p.salesperson || 'Direto'}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => sendFollowUpMessage(p)}
-                          className="bg-green-600 text-white p-3 rounded-xl shadow-lg hover:bg-green-700 active:scale-95 transition-all"
-                          title="Enviar Mensagem de Follow-up"
+                      <div className="flex flex-col items-end gap-2">
+                        <select 
+                          value={p.status} 
+                          onChange={(e) => updateStatus(p.id, e.target.value as ProposalStatus)}
+                          className={`text-[9px] font-black uppercase py-2 px-3 rounded-xl border-2 outline-none appearance-none cursor-pointer ${getStatusColor(p.status)}`}
                         >
-                          <MessageCircle size={18} />
-                        </button>
-                        {(p.status === 'aberto' || p.status === 'em_andamento') && (
+                          <option value="aberto">Aberto</option>
+                          <option value="em_andamento">Em Obra</option>
+                          <option value="fechado">Fechado</option>
+                          <option value="cancelado">Perdido</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setCurrentProposal(p); setView('preview'); }} className="p-2 bg-zinc-50 text-zinc-400 rounded-lg hover:text-zinc-900"><Eye size={16} /></button>
+                          <button onClick={() => { setCurrentProposal(p); setView('form'); }} className="p-2 bg-zinc-50 text-zinc-400 rounded-lg hover:text-zinc-900"><Edit size={16} /></button>
+                          <button onClick={() => shareViaWhatsApp(p)} className="p-2 bg-zinc-50 text-green-500 rounded-lg hover:bg-green-50"><Share2 size={16} /></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-4 pt-4 border-t border-zinc-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock size={12} className={isAlert ? 'text-red-500' : 'text-zinc-300'} />
+                            <span className={`text-[10px] font-bold ${isAlert ? 'text-red-600 font-black' : 'text-zinc-400'}`}>
+                              {daysSinceFollowUp === 0 ? 'Atualizado hoje' : `${isAlert ? 'ATRASADO:' : ''} Contato há ${daysSinceFollowUp} dias`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black text-zinc-400 uppercase">Responsável: {p.salesperson || 'Direto'}</span>
+                        </div>
+                        <div className="flex gap-2">
                           <button 
-                            onClick={() => markFollowUp(p.id)}
-                            className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all ${isAlert ? 'bg-red-500 text-white shadow-lg' : 'bg-zinc-100 text-zinc-500'}`}
+                            onClick={() => sendFollowUpMessage(p)}
+                            className="bg-green-600 text-white px-4 py-2.5 rounded-xl shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center gap-2 text-[9px] font-black uppercase"
                           >
-                            Registrar Contato
+                            <MessageCircle size={14} /> Follow-up
                           </button>
-                        )}
+                          {(p.status === 'aberto' || p.status === 'em_andamento') && (
+                            <button 
+                              onClick={() => markFollowUp(p.id)}
+                              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all ${isAlert ? 'bg-red-500 text-white shadow-lg' : 'bg-zinc-100 text-zinc-500'}`}
+                            >
+                              Check
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -403,7 +471,7 @@ export default function App() {
           <div className="sticky top-0 bg-white/90 backdrop-blur-xl p-6 border-b z-[70] flex items-center justify-between shadow-sm">
             <button onClick={() => setView('dashboard')} className="p-3 bg-zinc-100 text-zinc-500 rounded-2xl"><ArrowLeft size={20} /></button>
             <div className="text-center">
-              <h2 className="font-black italic text-zinc-800 text-lg uppercase tracking-tighter">Novo Orçamento</h2>
+              <h2 className="font-black italic text-zinc-800 text-lg uppercase tracking-tighter">Edição de Orçamento</h2>
               <p className="text-[10px] font-bold text-yellow-500 tracking-widest">{currentProposal.number}</p>
             </div>
             <button onClick={handleSave} className="bg-zinc-900 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-lg">SALVAR</button>
@@ -413,18 +481,16 @@ export default function App() {
             <section>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">1</div>
-                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Identificação da Proposta</h3>
+                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Identificação</h3>
               </div>
               <div className="space-y-2">
                 <StableInput label="Cliente / Razão Social" value={currentProposal.client} onChange={v => setCurrentProposal({...currentProposal, client: v})} placeholder="Ex: Maria Oliveira ou Construtora X" />
                 <div className="grid grid-cols-2 gap-4">
-                  <StableInput label="Responsável Comercial" value={currentProposal.salesperson} onChange={v => setCurrentProposal({...currentProposal, salesperson: v})} placeholder="Nome do Vendedor" />
-                  <StableInput label="Contato Direto (A/C)" value={currentProposal.contact} onChange={v => setCurrentProposal({...currentProposal, contact: v})} placeholder="Pessoa de contato" />
+                  <StableInput label="Vendedor Responsável" value={currentProposal.salesperson} onChange={v => setCurrentProposal({...currentProposal, salesperson: v})} placeholder="Seu nome" />
+                  <StableInput label="A/C (Contato)" value={currentProposal.contact} onChange={v => setCurrentProposal({...currentProposal, contact: v})} placeholder="Nome da pessoa" />
                 </div>
-                <div className="grid grid-cols-1 gap-4">
-                  <StableInput label="WhatsApp / Telefone" value={currentProposal.phone} onChange={v => setCurrentProposal({...currentProposal, phone: v})} placeholder="(00) 00000-0000" />
-                </div>
-                <StableTextArea label="Local da Prestação do Serviço" value={currentProposal.address} onChange={v => setCurrentProposal({...currentProposal, address: v})} placeholder="Endereço da obra" />
+                <StableInput label="WhatsApp do Cliente" value={currentProposal.phone} onChange={v => setCurrentProposal({...currentProposal, phone: v})} placeholder="(00) 00000-0000" />
+                <StableTextArea label="Local da Obra" value={currentProposal.address} onChange={v => setCurrentProposal({...currentProposal, address: v})} placeholder="Endereço onde o serviço será feito" />
               </div>
             </section>
 
@@ -432,10 +498,10 @@ export default function App() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">2</div>
-                  <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Descrição Técnica</h3>
+                  <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Escopo Técnico</h3>
                 </div>
                 <button onClick={() => setCurrentProposal({ ...currentProposal, items: [...currentProposal.items, { id: Math.random().toString(), desc: '', qty: 1, unit: 0, total: 0 }] })} className="bg-yellow-400 text-zinc-900 px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-md flex items-center gap-2">
-                  <Plus size={14} strokeWidth={4} /> ADICIONAR ITEM
+                  <Plus size={14} strokeWidth={4} /> ITEM
                 </button>
               </div>
 
@@ -445,17 +511,17 @@ export default function App() {
                     {currentProposal.items.length > 1 && (
                       <button onClick={() => setCurrentProposal({ ...currentProposal, items: currentProposal.items.filter(i => i.id !== item.id) })} className="absolute -top-3 -right-3 bg-red-500 text-white p-2 rounded-full shadow-lg"><X size={16} /></button>
                     )}
-                    <StableTextArea label={`Item #${idx+1} - Descrição do Serviço`} value={item.desc} onChange={v => {
+                    <StableTextArea label={`Descrição do Serviço #${idx+1}`} value={item.desc} onChange={v => {
                       const n = currentProposal.items.map(i => i.id === item.id ? {...i, desc: v} : i);
                       setCurrentProposal({...currentProposal, items: n});
-                    }} placeholder="Ex: Instalação de quadro elétrico completo..." rows={4} />
+                    }} placeholder="Ex: Manutenção em quadro trifásico..." rows={4} />
                     <div className="grid grid-cols-2 gap-4 mt-2">
                       <StableInput label="Quantidade" type="number" value={item.qty} onChange={v => {
                         const q = parseFloat(v) || 0;
                         const n = currentProposal.items.map(i => i.id === item.id ? {...i, qty: q, total: q * i.unit} : i);
                         setCurrentProposal({...currentProposal, items: n});
                       }} />
-                      <StableInput label="Valor Unit. (R$)" type="number" value={item.unit} onChange={v => {
+                      <StableInput label="Preço Unit. (R$)" type="number" value={item.unit} onChange={v => {
                         const u = parseFloat(v) || 0;
                         const n = currentProposal.items.map(i => i.id === item.id ? {...i, unit: u, total: item.qty * u} : i);
                         setCurrentProposal({...currentProposal, items: n});
@@ -469,18 +535,18 @@ export default function App() {
             <section>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">3</div>
-                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Prazos e Pagamento</h3>
+                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Condições Finais</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StableInput label="Prazo de Entrega/Execução" value={currentProposal.delivery} onChange={v => setCurrentProposal({...currentProposal, delivery: v})} placeholder="Ex: 5 dias úteis" />
-                <StableInput label="Condições de Pagamento" value={currentProposal.payment} onChange={v => setCurrentProposal({...currentProposal, payment: v})} placeholder="Ex: 50% entrada e 50% entrega" />
+                <StableInput label="Prazo (Entrega)" value={currentProposal.delivery} onChange={v => setCurrentProposal({...currentProposal, delivery: v})} placeholder="Ex: 5 dias" />
+                <StableInput label="Pagamento" value={currentProposal.payment} onChange={v => setCurrentProposal({...currentProposal, payment: v})} placeholder="Ex: À vista ou 30 dias" />
               </div>
             </section>
           </div>
 
           <div className="fixed bottom-24 left-6 right-6 p-6 bg-zinc-900 text-white flex items-center justify-between rounded-[2rem] shadow-2xl z-40 border-t-4 border-yellow-400">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-yellow-400 uppercase">Investimento Estimado</span>
+              <span className="text-[9px] font-black text-yellow-400 uppercase">Total Geral</span>
               <span className="text-2xl font-black italic tracking-tighter">{formatCurrency(currentProposal.items.reduce((a,b)=>a+b.total,0))}</span>
             </div>
             <button onClick={handleSave} className="bg-yellow-400 text-zinc-900 px-8 py-4 rounded-2xl font-black shadow-xl uppercase text-xs">FINALIZAR</button>
@@ -494,6 +560,7 @@ export default function App() {
             <button onClick={() => setView('dashboard')} className="text-white font-black flex items-center gap-2 bg-white/5 px-5 py-2.5 rounded-xl transition-colors hover:bg-white/10"><ArrowLeft size={18} /> VOLTAR</button>
             <div className="flex items-center gap-2">
               <button onClick={() => shareViaWhatsApp(currentProposal)} className="bg-green-600 text-white px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-green-700 transition-all"><MessageCircle size={16} /> WHATSAPP</button>
+              <button onClick={() => downloadProposalFile(currentProposal)} className="bg-white text-zinc-900 px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-zinc-100 transition-all"><Download size={16} /> SALVAR</button>
               <button onClick={() => printProposal(currentProposal)} className="bg-yellow-400 text-zinc-900 px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-yellow-500 transition-all"><Printer size={16} /> PDF / PRINT</button>
             </div>
           </div>
