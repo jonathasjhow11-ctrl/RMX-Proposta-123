@@ -10,14 +10,12 @@ import {
   FileText, 
   Loader2, 
   Zap,
-  Sparkles,
   Share2,
   MessageCircle
 } from 'lucide-react';
 import { Proposal, ViewState } from './types';
 import { RaimundixLogo } from './constants';
 import { storageService } from './services/storageService';
-import { geminiService } from './services/geminiService';
 import { StableInput, StableTextArea, Notification } from './components/UI';
 
 export default function App() {
@@ -26,7 +24,6 @@ export default function App() {
   const [currentProposal, setCurrentProposal] = useState<Proposal | null>(null);
   const [notif, setNotif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [optimizingId, setOptimizingId] = useState<string | null>(null);
 
   useEffect(() => {
     const loaded = storageService.getProposals();
@@ -81,22 +78,6 @@ export default function App() {
       setProposals(updated);
       showNotif("Orçamento removido.");
     }
-  };
-
-  const optimizeItemDescription = async (itemId: string) => {
-    if (!currentProposal) return;
-    const item = currentProposal.items.find(i => i.id === itemId);
-    if (!item || !item.desc) return;
-
-    setOptimizingId(itemId);
-    const optimized = await geminiService.optimizeDescription(item.desc);
-    
-    const newItems = currentProposal.items.map(i => 
-      i.id === itemId ? { ...i, desc: optimized } : i
-    );
-    setCurrentProposal({ ...currentProposal, items: newItems });
-    setOptimizingId(null);
-    showNotif("Descrição otimizada pela IA!");
   };
 
   const formatCurrency = (val: number) => 
@@ -341,28 +322,16 @@ export default function App() {
                       </button>
                     )}
                     
-                    <div className="relative">
-                      <StableTextArea 
-                        label={`Descrição Item ${idx+1}`} 
-                        value={item.desc} 
-                        onChange={v => {
-                          const n = currentProposal.items.map(i => i.id === item.id ? {...i, desc: v} : i);
-                          setCurrentProposal({...currentProposal, items: n});
-                        }} 
-                        placeholder="Descreva o serviço..."
-                        rows={4}
-                      />
-                      {item.desc.length > 5 && (
-                        <button 
-                          disabled={optimizingId === item.id}
-                          onClick={() => optimizeItemDescription(item.id)}
-                          className="absolute bottom-2 right-2 bg-zinc-900 text-yellow-400 p-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase hover:bg-zinc-800 disabled:opacity-50 transition-all"
-                        >
-                          {optimizingId === item.id ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                          IA
-                        </button>
-                      )}
-                    </div>
+                    <StableTextArea 
+                      label={`Descrição Item ${idx+1}`} 
+                      value={item.desc} 
+                      onChange={v => {
+                        const n = currentProposal.items.map(i => i.id === item.id ? {...i, desc: v} : i);
+                        setCurrentProposal({...currentProposal, items: n});
+                      }} 
+                      placeholder="Descreva o serviço..."
+                      rows={4}
+                    />
 
                     <div className="grid grid-cols-2 gap-4 mt-2">
                       <StableInput label="Quantidade" type="number" value={item.qty} onChange={v => {
