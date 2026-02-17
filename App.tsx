@@ -116,26 +116,30 @@ export default function App() {
       <head>
         <title>Orçamento ${p.number}</title>
         <style>
-          body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; color: #1a1a1a; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+          body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; color: #1a1a1a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .header { background: #000; padding: 40px; color: #fff; text-align: center; border-bottom: 8px solid #facc15; }
-          .header h1 { margin: 0; font-size: 42px; font-weight: 900; letter-spacing: -2px; font-style: italic; }
+          .header h1 { margin: 0; font-size: 42px; font-weight: 900; letter-spacing: -2px; font-style: italic; text-transform: uppercase; }
           .header .sub { color: #facc15; text-transform: uppercase; letter-spacing: 4px; font-size: 10px; font-weight: 800; margin-top: 5px; }
           .content { padding: 40px; }
           .section-title { font-weight: 900; text-transform: uppercase; font-size: 12px; color: #facc15; background: #000; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 15px; margin-top: 30px; }
           .client-box { background: #f8fafc; padding: 25px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start; }
           .item-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
           .item-table th { background: #000; color: #fff; padding: 12px; text-align: left; font-size: 10px; text-transform: uppercase; }
-          .total-row { background: #facc15; font-weight: 900; font-size: 20px; text-align: right; padding: 20px; border-radius: 12px; margin-top: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+          .total-row { background: #facc15; font-weight: 900; font-size: 20px; text-align: right; padding: 20px; border-radius: 12px; margin-top: 20px; }
           .footer { padding: 30px; text-align: center; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; margin-top: 50px; }
           .stamp { text-align: right; margin-top: 40px; }
           .stamp-badge { background: #000; color: #fff; display: inline-block; padding: 15px 25px; border-radius: 20px; border-bottom: 4px solid #facc15; }
+          @media print {
+            body { margin: 0; padding: 0; }
+            .no-print { display: none; }
+          }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>RAIMUNDIX</h1>
-          <div class="sub">Materiais Elétricos e Instalações</div>
+          <div class="sub">Soluções em Elétrica</div>
         </div>
         <div class="content">
           <div class="section-title">Dados do Cliente</div>
@@ -181,14 +185,25 @@ export default function App() {
           <strong>RAIMUNDIX SOLUÇÕES EM ELÉTRICA | CNPJ: 48.664.811/0001-13</strong><br>
           Estrada Hiroshi Tobinaga, 183 - Suzano/SP • (11) 94742-1770
         </div>
-        <script>window.onload = () => { setTimeout(() => window.print(), 500); };</script>
+        <script>
+          window.onload = () => { 
+            setTimeout(() => { 
+              window.print();
+              window.onafterprint = () => window.close();
+            }, 800); 
+          };
+        </script>
       </body>
       </html>
     `;
+    
     const win = window.open('', '_blank');
     if (win) {
       win.document.write(htmlContent);
       win.document.close();
+      win.focus();
+    } else {
+      alert("Por favor, permita pop-ups para gerar o PDF.");
     }
   };
 
