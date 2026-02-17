@@ -1,31 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, 
-  Trash2, 
-  Printer, 
-  ArrowLeft, 
-  X, 
-  Edit, 
-  FileText, 
-  Loader2, 
-  Zap,
-  Share2,
-  MessageCircle,
-  BarChart3,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-  ChevronRight,
-  UserCheck,
-  BellRing,
-  Download,
-  Eye,
-  Trophy,
-  History,
-  Ban
+  Plus, Trash2, Printer, ArrowLeft, X, Edit, FileText, Loader2, Zap,
+  Share2, MessageCircle, BarChart3, Calendar, CheckCircle2, Clock,
+  AlertCircle, TrendingUp, ChevronRight, UserCheck, BellRing, Download,
+  Eye, Trophy, History, Ban, FileDown, Share
 } from 'lucide-react';
 import { Proposal, ViewState, ProposalStatus } from './types';
 import { RaimundixLogo } from './constants';
@@ -38,6 +17,7 @@ export default function App() {
   const [currentProposal, setCurrentProposal] = useState<Proposal | null>(null);
   const [notif, setNotif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const loaded = storageService.getProposals();
@@ -61,17 +41,10 @@ export default function App() {
       id: Math.random().toString(36).substr(2, 9),
       number: `RMX-${String(proposals.length + 1).padStart(5, '0')}`,
       date: new Date().toLocaleDateString('pt-BR'),
-      client: '',
-      contact: '',
-      phone: '',
-      address: '',
-      salesperson: '',
+      client: '', contact: '', phone: '', address: '', salesperson: '',
       items: [{ id: Math.random().toString(), desc: '', qty: 1, unit: 0, total: 0 }],
-      delivery: 'Até 3 dias úteis',
-      payment: 'Boleto para 10 DDL',
-      status: 'aberto',
-      lastFollowUp: Date.now(),
-      createdAt: Date.now()
+      delivery: 'Até 3 dias úteis', payment: 'Boleto para 10 DDL',
+      status: 'aberto', lastFollowUp: Date.now(), createdAt: Date.now()
     };
     setCurrentProposal(newP);
     setView('form');
@@ -82,53 +55,25 @@ export default function App() {
       showNotif("O nome do cliente é obrigatório!");
       return;
     }
-
     const isUpdate = proposals.some(p => p.id === currentProposal.id);
-    let updated;
-    if (isUpdate) {
-      updated = storageService.updateProposal(currentProposal);
-    } else {
-      updated = storageService.addProposal(currentProposal);
-    }
+    const updated = isUpdate ? storageService.updateProposal(currentProposal) : storageService.addProposal(currentProposal);
     setProposals(updated);
     showNotif("Orçamento salvo!");
     setView('dashboard');
   };
 
-  const updateStatus = (id: string, newStatus: ProposalStatus) => {
-    const proposal = proposals.find(p => p.id === id);
-    if (proposal) {
-      const updatedProposal = { ...proposal, status: newStatus, lastFollowUp: Date.now() };
-      const updatedList = storageService.updateProposal(updatedProposal);
-      setProposals(updatedList);
-      showNotif(`Status: ${newStatus.replace('_', ' ')}`);
-    }
-  };
-
-  const markFollowUp = (id: string) => {
-    const proposal = proposals.find(p => p.id === id);
-    if (proposal) {
-      const updatedProposal = { ...proposal, lastFollowUp: Date.now() };
-      const updatedList = storageService.updateProposal(updatedProposal);
-      setProposals(updatedList);
-      showNotif("Follow-up registrado!");
-    }
-  };
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   const stats = useMemo(() => {
     const active = proposals.filter(p => p.status === 'aberto' || p.status === 'em_andamento');
     const closed = proposals.filter(p => p.status === 'fechado');
-    const cancelled = proposals.filter(p => p.status === 'cancelado');
-    
     const calculateTotal = (list: Proposal[]) => 
       list.reduce((acc, p) => acc + p.items.reduce((sum, item) => sum + item.total, 0), 0);
-    
     const followUpPending = active.filter(p => (Date.now() - p.lastFollowUp) / (1000 * 60 * 60 * 24) > 7);
-    
     return {
       totalActive: calculateTotal(active),
       totalClosed: calculateTotal(closed),
-      totalCancelled: calculateTotal(cancelled),
       pendingCount: followUpPending.length,
       counts: {
         aberto: proposals.filter(p => p.status === 'aberto').length,
@@ -139,114 +84,110 @@ export default function App() {
     };
   }, [proposals]);
 
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-
-  const shareViaWhatsApp = (p: Proposal) => {
-    const total = p.items.reduce((acc, i) => acc + i.total, 0);
-    const text = `*⚡ ORÇAMENTO RAIMUNDIX - ${p.number}*\n\n` +
-      `*CLIENTE:* ${p.client}\n` +
-      `*VENDEDOR:* ${p.salesperson || 'Direto'}\n` +
-      `*DATA:* ${p.date}\n` +
-      `*VALOR TOTAL:* ${formatCurrency(total)}\n\n` +
-      `*DETALHAMENTO:*\n` +
-      p.items.map(i => `✅ ${i.qty}x ${i.desc}`).join('\n') +
-      `\n\n*CONDIÇÕES:* ${p.delivery} | ${p.payment}\n\n` +
-      `_Agradecemos a oportunidade!_\n` +
-      `*RAIMUNDIX SOLUÇÕES EM ELÉTRICA*`;
-    
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
-  const sendFollowUpMessage = (p: Proposal) => {
-    const text = `Olá *${p.client}*, tudo bem?\n\nAqui é o ${p.salesperson || 'responsável'} da *RAIMUNDIX Soluções em Elétrica*.\n\nGostaria de saber se você conseguiu avaliar o orçamento *${p.number}* que enviamos no dia ${p.date}.\n\nSeguimos à disposição para qualquer dúvida ou ajuste no escopo. Aguardamos seu retorno!\n\nAtenciosamente.`;
-    const cleanPhone = p.phone.replace(/\D/g, '');
-    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(text)}`, '_blank');
-  };
-
   const getProposalHtml = (p: Proposal) => {
     const totalGeral = p.items.reduce((acc, i) => acc + (i.total || 0), 0);
     const itemsHtml = p.items.map(item => `
       <tr>
-        <td style="padding: 12px; border: 1px solid #eee; font-size: 11px; white-space: pre-wrap;">${item.desc}</td>
-        <td style="padding: 12px; border: 1px solid #eee; text-align: center; font-size: 11px;">${item.qty}</td>
-        <td style="padding: 12px; border: 1px solid #eee; text-align: right; font-weight: bold; font-size: 11px;">${formatCurrency(item.total)}</td>
+        <td style="padding: 12px; border: 1px solid #eee; font-size: 11px;">${item.desc}</td>
+        <td style="padding: 12px; border: 1px solid #eee; text-align: center;">${item.qty}</td>
+        <td style="padding: 12px; border: 1px solid #eee; text-align: right; font-weight: bold;">${formatCurrency(item.total)}</td>
       </tr>
     `).join('');
 
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Orcamento_${p.number}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-          body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; color: #1a1a1a; }
-          .header { background: #000; padding: 40px; color: #fff; text-align: center; border-bottom: 8px solid #facc15; }
-          .header h1 { margin: 0; font-size: 42px; font-weight: 900; font-style: italic; text-transform: uppercase; }
-          .header .sub { color: #facc15; text-transform: uppercase; letter-spacing: 4px; font-size: 10px; font-weight: 800; margin-top: 5px; }
-          .content { padding: 40px; }
-          .client-box { background: #f8fafc; padding: 25px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 30px; display: flex; justify-content: space-between; }
-          .item-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .item-table th { background: #000; color: #fff; padding: 12px; text-align: left; font-size: 10px; text-transform: uppercase; }
-          .total-row { background: #facc15; font-weight: 900; font-size: 20px; text-align: right; padding: 20px; border-radius: 12px; margin-top: 20px; }
-          .footer { padding: 30px; text-align: center; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; margin-top: 50px; }
-          .sales-info { font-size: 10px; font-weight: bold; color: #94a3b8; margin-top: 10px; text-transform: uppercase; }
-        </style>
-      </head>
-      <body>
-        <div class="header"><h1>RAIMUNDIX</h1><div class="sub">Soluções em Elétrica</div></div>
-        <div class="content">
-          <div class="client-box">
+      <div style="padding: 20px; font-family: 'Inter', sans-serif; background: #fff;">
+        <div style="background: #000; color: #fff; padding: 30px; text-align: center; border-bottom: 6px solid #facc15;">
+          <h1 style="margin: 0; font-size: 32px; font-weight: 900; font-style: italic;">RAIMUNDIX</h1>
+          <p style="margin: 5px 0 0; font-size: 10px; letter-spacing: 3px; font-weight: 800; color: #facc15;">SOLUÇÕES EM ELÉTRICA</p>
+        </div>
+        <div style="padding: 20px;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
             <div>
-              <strong style="font-size: 18px; text-transform: uppercase;">${p.client}</strong><br>
-              A/C: ${p.contact || '---'}<br>
-              <div class="sales-info">Vendedor: ${p.salesperson || 'Responsável Direto'}</div>
+              <p style="font-size: 10px; color: #999; margin: 0;">CLIENTE</p>
+              <p style="font-size: 16px; font-weight: 800; margin: 0; text-transform: uppercase;">${p.client}</p>
+              <p style="font-size: 11px; margin: 5px 0 0;">A/C: <strong>${p.contact || 'Responsável'}</strong></p>
+              <p style="font-size: 11px; margin: 2px 0 0;">Vendedor: <strong>${p.salesperson || 'Direto'}</strong></p>
             </div>
-            <div style="text-align: right;">${p.phone}<br>Orçamento: <strong>${p.number}</strong><br>${p.date}</div>
+            <div style="text-align: right;">
+              <p style="font-size: 10px; color: #999; margin: 0;">PROPOSTA</p>
+              <p style="font-size: 16px; font-weight: 800; margin: 0; color: #b45309;">${p.number}</p>
+              <p style="font-size: 11px; margin: 5px 0 0;">${p.date}</p>
+            </div>
           </div>
-          <table class="item-table">
-            <thead><tr><th>Descrição dos Serviços</th><th style="width: 50px; text-align: center;">Qtd</th><th style="width: 120px; text-align: right;">Total</th></tr></thead>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead><tr style="background: #000; color: #fff; font-size: 10px; text-transform: uppercase;">
+              <th style="padding: 10px; text-align: left;">Descrição do Serviço</th>
+              <th style="padding: 10px; width: 50px;">Qtd</th>
+              <th style="padding: 10px; text-align: right; width: 100px;">Total</th>
+            </tr></thead>
             <tbody>${itemsHtml}</tbody>
           </table>
-          <div class="total-row">INVESTIMENTO TOTAL: ${formatCurrency(totalGeral)}</div>
-          <div style="margin-top: 30px; font-size: 12px; background: #fdfdfd; padding: 20px; border-radius: 12px; border: 1px solid #f1f1f1;">
-            <strong>CONDIÇÕES GERAIS:</strong><br>
-            • Prazo de Execução: ${p.delivery}<br>
-            • Forma de Pagamento: ${p.payment}<br>
-            • Validade da Proposta: 10 dias úteis
+          <div style="background: #facc15; padding: 15px; text-align: right; font-weight: 900; font-size: 18px; border-radius: 8px;">
+            INVESTIMENTO TOTAL: ${formatCurrency(totalGeral)}
+          </div>
+          <div style="margin-top: 30px; font-size: 11px; color: #444; background: #fafafa; padding: 15px; border-radius: 8px;">
+            <p><strong>CONDIÇÕES GERAIS:</strong></p>
+            <p>• Prazo de Entrega: ${p.delivery}</p>
+            <p>• Forma de Pagamento: ${p.payment}</p>
+            <p>• Validade da Proposta: 10 dias úteis</p>
           </div>
         </div>
-        <div class="footer">
-          <strong>RAIMUNDIX SOLUÇÕES EM ELÉTRICA</strong> | CNPJ: 48.664.811/0001-13<br>
-          Estrada Hiroshi Tobinaga, 183 - Suzano/SP • (11) 94742-1770
-        </div>
-        <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 800); };</script>
-      </body>
-      </html>
+      </div>
     `;
   };
 
-  const printProposal = (p: Proposal) => {
-    const htmlContent = getProposalHtml(p);
-    const win = window.open('', '_blank');
-    if (win) { win.document.write(htmlContent); win.document.close(); }
+  const handleSharePDF = async (p: Proposal, mode: 'save' | 'share' = 'share') => {
+    if (!p) return;
+    setGenerating(true);
+    showNotif("Preparando arquivo...");
+
+    const element = document.createElement('div');
+    element.innerHTML = getProposalHtml(p);
+    element.style.width = '210mm';
+
+    const opt = {
+      margin: 0,
+      filename: `Orcamento_${p.number}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      // @ts-ignore
+      const worker = html2pdf().set(opt).from(element);
+      
+      if (mode === 'save') {
+        await worker.save();
+        showNotif("Salvo com sucesso!");
+      } else {
+        const pdfBlob = await worker.output('blob');
+        const file = new File([pdfBlob], `Orcamento_${p.number}.pdf`, { type: 'application/pdf' });
+
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `Orçamento Raimundix - ${p.number}`,
+            text: `Olá ${p.client}, segue o orçamento solicitado.`
+          });
+        } else {
+          await worker.save();
+          showNotif("Salvo localmente (Share não suportado)");
+        }
+      }
+    } catch (err) {
+      showNotif("Erro ao gerar PDF");
+      console.error(err);
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  const downloadProposalFile = (p: Proposal) => {
-    const htmlContent = getProposalHtml(p);
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Orcamento_${p.number}_${p.client.replace(/\s+/g, '_')}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showNotif("Arquivo gerado com sucesso!");
+  const sendFollowUpMessage = (p: Proposal) => {
+    const text = `Olá *${p.client}*, tudo bem?\n\nAqui é o ${p.salesperson || 'responsável'} da *RAIMUNDIX Soluções em Elétrica*.\n\nGostaria de saber se você conseguiu avaliar o orçamento *${p.number}*.\n\nSeguimos à disposição!`;
+    const cleanPhone = p.phone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const getStatusColor = (status: ProposalStatus) => {
@@ -261,7 +202,7 @@ export default function App() {
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-zinc-950 text-yellow-400 gap-4">
       <Loader2 className="animate-spin" size={48} />
-      <span className="font-black text-xs uppercase tracking-widest italic">RAIMUNDIX Soluções em Elétrica</span>
+      <span className="font-black text-[10px] uppercase tracking-widest italic">RAIMUNDIX Soluções</span>
     </div>
   );
 
@@ -285,8 +226,8 @@ export default function App() {
 
       {view === 'dashboard' && (
         <div className="max-w-2xl mx-auto">
-          <header className="bg-zinc-900 text-white pt-16 pb-24 px-8 rounded-b-[4rem] border-b-8 border-yellow-400 relative shadow-2xl overflow-hidden text-center">
-            <div className="mb-6 flex justify-center scale-110"><RaimundixLogo size={80} /></div>
+          <header className="bg-zinc-900 text-white pt-16 pb-24 px-8 rounded-b-[4rem] border-b-8 border-yellow-400 relative shadow-2xl text-center">
+            <div className="mb-6 flex justify-center"><RaimundixLogo size={80} /></div>
             <h1 className="text-4xl font-black italic tracking-tighter mb-1 uppercase">RAIMUNDIX</h1>
             <p className="text-yellow-400 text-[10px] font-black uppercase tracking-[0.4em] opacity-80">Soluções em Elétrica</p>
           </header>
@@ -294,38 +235,31 @@ export default function App() {
           <div className="px-6 -mt-10 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 text-center">
-                <h3 className="text-[10px] font-black text-zinc-400 uppercase mb-1 tracking-widest">Negociações</h3>
-                <p className="text-xl font-black text-zinc-900 leading-tight">{formatCurrency(stats.totalActive)}</p>
+                <h3 className="text-[10px] font-black text-zinc-400 uppercase mb-1 tracking-widest">Em Aberto</h3>
+                <p className="text-xl font-black text-zinc-900">{formatCurrency(stats.totalActive)}</p>
               </div>
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 text-center">
                 <h3 className="text-[10px] font-black text-zinc-400 uppercase mb-1 tracking-widest">Faturado</h3>
-                <p className="text-xl font-black text-green-600 leading-tight">{formatCurrency(stats.totalClosed)}</p>
+                <p className="text-xl font-black text-green-600">{formatCurrency(stats.totalClosed)}</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Últimos Orçamentos</h2>
-              </div>
+              <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest px-2">Recentes</h2>
               {proposals.length === 0 ? (
-                <div className="bg-white rounded-[2rem] p-16 text-center border-2 border-dashed border-zinc-200">
-                  <FileText className="mx-auto text-zinc-200 mb-4" size={48} />
-                  <p className="text-zinc-400 font-bold italic">Toque no + para iniciar.</p>
-                </div>
+                <div className="bg-white rounded-[2rem] p-16 text-center border-2 border-dashed border-zinc-200 text-zinc-400 font-bold italic">Toque no + para iniciar.</div>
               ) : (
-                proposals.slice(0, 8).map(p => (
-                  <div key={p.id} className="bg-white rounded-[2rem] p-5 shadow-sm border border-zinc-100 flex items-center gap-4 hover:shadow-lg transition-all active:scale-[0.99]">
-                    <div className="flex-1 overflow-hidden" onClick={() => { setCurrentProposal(p); setView('preview'); }}>
+                proposals.slice(0, 5).map(p => (
+                  <div key={p.id} className="bg-white rounded-[2rem] p-5 shadow-sm border border-zinc-100 flex items-center gap-4 active:scale-[0.98] transition-all" onClick={() => { setCurrentProposal(p); setView('preview'); }}>
+                    <div className="flex-1 overflow-hidden">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${getStatusColor(p.status)}`}>
-                          {p.status.replace('_', ' ')}
-                        </span>
-                        <span className="text-[9px] font-bold text-zinc-300 uppercase italic">{p.number}</span>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${getStatusColor(p.status)}`}>{p.status}</span>
+                        <span className="text-[9px] font-bold text-zinc-300 italic">{p.number}</span>
                       </div>
-                      <h3 className="font-black text-zinc-800 uppercase truncate mb-1">{p.client}</h3>
+                      <h3 className="font-black text-zinc-800 uppercase truncate">{p.client}</h3>
                       <p className="text-sm font-black text-zinc-900">{formatCurrency(p.items.reduce((a, b) => a + b.total, 0))}</p>
                     </div>
-                    <button onClick={() => { setCurrentProposal(p); setView('form'); }} className="p-3 bg-zinc-50 text-zinc-400 rounded-xl"><Edit size={18} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setCurrentProposal(p); setView('form'); }} className="p-3 bg-zinc-50 text-slate-500 rounded-xl"><Edit size={18} /></button>
                   </div>
                 ))
               )}
@@ -336,132 +270,73 @@ export default function App() {
 
       {view === 'management' && (
         <div className="max-w-2xl mx-auto p-6 space-y-8 animate-in fade-in duration-500">
-          <div className="flex items-center gap-4 mb-2">
+          <div className="flex items-center gap-4">
             <div className="bg-zinc-900 p-3 rounded-2xl text-yellow-400 shadow-lg"><BarChart3 size={24} /></div>
             <div>
-              <h1 className="text-2xl font-black italic text-zinc-900">PAINEL COMERCIAL</h1>
-              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Controle RAIMUNDIX</p>
+              <h1 className="text-2xl font-black italic text-zinc-900 uppercase">Gestão Comercial</h1>
+              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest tracking-tighter">Status e Performance</p>
             </div>
           </div>
 
-          {/* DASHBOARD DE STATUS */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
-              <Clock size={16} className="text-yellow-500 mb-2" />
-              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Abertos</h4>
-              <p className="text-xl font-black text-zinc-900">{stats.counts.aberto}</p>
-            </div>
-            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
-              <Zap size={16} className="text-blue-500 mb-2" />
-              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Em Obra</h4>
-              <p className="text-xl font-black text-zinc-900">{stats.counts.em_andamento}</p>
-            </div>
-            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
-              <Trophy size={16} className="text-green-500 mb-2" />
-              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Fechados</h4>
-              <p className="text-xl font-black text-zinc-900">{stats.counts.fechado}</p>
-            </div>
-            <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
-              <Ban size={16} className="text-red-400 mb-2" />
-              <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Perdidos</h4>
-              <p className="text-xl font-black text-zinc-900">{stats.counts.cancelado}</p>
-            </div>
+            {[
+              { label: 'Abertos', count: stats.counts.aberto, icon: Clock, color: 'text-yellow-500' },
+              { label: 'Em Obra', count: stats.counts.em_andamento, icon: Zap, color: 'text-blue-500' },
+              { label: 'Fechados', count: stats.counts.fechado, icon: Trophy, color: 'text-green-500' },
+              { label: 'Perdidos', count: stats.counts.cancelado, icon: Ban, color: 'text-red-400' }
+            ].map((st, i) => (
+              <div key={i} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex flex-col items-center text-center">
+                <st.icon size={16} className={`${st.color} mb-2`} />
+                <h4 className="text-[9px] font-black text-zinc-400 uppercase">{st.label}</h4>
+                <p className="text-xl font-black text-zinc-900 leading-none mt-1">{st.count}</p>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="bg-zinc-900 p-8 rounded-[2.5rem] shadow-2xl text-white overflow-hidden relative border-b-8 border-yellow-400">
-              <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><TrendingUp size={120} /></div>
-              <div className="relative z-10">
-                <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Pipeline (Abertos + Obras)</h3>
-                <p className="text-4xl font-black italic">{formatCurrency(stats.totalActive)}</p>
-                <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-400">
-                  <CheckCircle2 size={12} className="text-green-500" /> Total Fechado: {formatCurrency(stats.totalClosed)}
-                </div>
-              </div>
+          <div className="bg-zinc-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden border-b-8 border-yellow-400">
+            <TrendingUp size={120} className="absolute top-0 right-0 p-8 opacity-10 rotate-12" />
+            <div className="relative z-10">
+              <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Previsão de Receita (Ativos)</h3>
+              <p className="text-4xl font-black italic">{formatCurrency(stats.totalActive)}</p>
             </div>
-
-            {stats.pendingCount > 0 && (
-              <div className="bg-red-50 border border-red-100 p-5 rounded-[2rem] flex items-center gap-4 border-l-8 border-l-red-500">
-                <div className="bg-red-500 text-white p-3 rounded-2xl shadow-lg animate-pulse"><BellRing size={24} /></div>
-                <div>
-                  <p className="text-red-900 font-black text-xs uppercase">Atenção Vendedor</p>
-                  <p className="text-red-700 text-[10px] font-bold uppercase">{stats.pendingCount} Contatos pendentes há mais de 7 dias.</p>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest px-2">Listagem de Negociações</h2>
-            {proposals.length === 0 ? (
-               <div className="bg-white rounded-[2rem] p-10 text-center border-2 border-dashed border-zinc-100 text-zinc-400 italic font-bold">Sem propostas para exibir.</div>
-            ) : (
-              proposals.map(p => {
-                const daysSinceFollowUp = Math.floor((Date.now() - p.lastFollowUp) / (1000 * 60 * 60 * 24));
-                const isAlert = daysSinceFollowUp > 7 && (p.status === 'aberto' || p.status === 'em_andamento');
-
-                return (
-                  <div key={p.id} className={`bg-white rounded-[2.5rem] p-6 shadow-sm border transition-all ${isAlert ? 'border-red-200 bg-red-50/20' : 'border-zinc-100'}`}>
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 overflow-hidden">
-                        <h3 className="font-black text-zinc-900 uppercase truncate mb-1">{p.client}</h3>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
-                          <span className="bg-zinc-100 px-2 py-0.5 rounded text-zinc-500">{p.number}</span>
-                          <span className="font-black text-zinc-600">{formatCurrency(p.items.reduce((a,b)=>a+b.total,0))}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <select 
-                          value={p.status} 
-                          onChange={(e) => updateStatus(p.id, e.target.value as ProposalStatus)}
-                          className={`text-[9px] font-black uppercase py-2 px-3 rounded-xl border-2 outline-none appearance-none cursor-pointer ${getStatusColor(p.status)}`}
-                        >
-                          <option value="aberto">Aberto</option>
-                          <option value="em_andamento">Em Obra</option>
-                          <option value="fechado">Fechado</option>
-                          <option value="cancelado">Perdido</option>
-                        </select>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setCurrentProposal(p); setView('preview'); }} className="p-2 bg-zinc-50 text-zinc-400 rounded-lg hover:text-zinc-900"><Eye size={16} /></button>
-                          <button onClick={() => { setCurrentProposal(p); setView('form'); }} className="p-2 bg-zinc-50 text-zinc-400 rounded-lg hover:text-zinc-900"><Edit size={16} /></button>
-                          <button onClick={() => shareViaWhatsApp(p)} className="p-2 bg-zinc-50 text-green-500 rounded-lg hover:bg-green-50"><Share2 size={16} /></button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-4 pt-4 border-t border-zinc-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Clock size={12} className={isAlert ? 'text-red-500' : 'text-zinc-300'} />
-                            <span className={`text-[10px] font-bold ${isAlert ? 'text-red-600 font-black' : 'text-zinc-400'}`}>
-                              {daysSinceFollowUp === 0 ? 'Atualizado hoje' : `${isAlert ? 'ATRASADO:' : ''} Contato há ${daysSinceFollowUp} dias`}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-black text-zinc-400 uppercase">Responsável: {p.salesperson || 'Direto'}</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => sendFollowUpMessage(p)}
-                            className="bg-green-600 text-white px-4 py-2.5 rounded-xl shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center gap-2 text-[9px] font-black uppercase"
-                          >
-                            <MessageCircle size={14} /> Follow-up
-                          </button>
-                          {(p.status === 'aberto' || p.status === 'em_andamento') && (
-                            <button 
-                              onClick={() => markFollowUp(p.id)}
-                              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all ${isAlert ? 'bg-red-500 text-white shadow-lg' : 'bg-zinc-100 text-zinc-500'}`}
-                            >
-                              Check
-                            </button>
-                          )}
-                        </div>
-                      </div>
+            <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest px-2">Pipeline Ativo</h2>
+            {proposals.map(p => (
+              <div key={p.id} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-zinc-100 flex flex-col gap-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h3 className="font-black text-zinc-900 uppercase truncate">{p.client}</h3>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase">
+                      <span>{p.number}</span> • <span>{formatCurrency(p.items.reduce((a,b)=>a+b.total,0))}</span>
                     </div>
                   </div>
-                );
-              })
-            )}
+                  <select 
+                    value={p.status} 
+                    onChange={(e) => {
+                      const updated = proposals.map(prop => prop.id === p.id ? {...prop, status: e.target.value as ProposalStatus, lastFollowUp: Date.now()} : prop);
+                      storageService.saveProposals(updated);
+                      setProposals(updated);
+                    }}
+                    className={`text-[9px] font-black uppercase py-2 px-3 rounded-xl border-2 ${getStatusColor(p.status)}`}
+                  >
+                    <option value="aberto">Aberto</option>
+                    <option value="em_andamento">Obra</option>
+                    <option value="fechado">Fechado</option>
+                    <option value="cancelado">Perdido</option>
+                  </select>
+                </div>
+                <div className="flex items-center justify-between pt-4 border-t border-zinc-50">
+                  <span className="text-[10px] font-black text-zinc-400 uppercase">A/C: {p.contact || 'Direto'}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setCurrentProposal(p); setView('form'); }} className="p-2 bg-slate-100 text-slate-600 rounded-xl"><Edit size={18} /></button>
+                    <button onClick={() => sendFollowUpMessage(p)} className="p-2 bg-green-500 text-white rounded-xl shadow-lg"><MessageCircle size={18} /></button>
+                    <button onClick={() => handleSharePDF(p)} className="p-2 bg-blue-500 text-white rounded-xl shadow-lg"><Share size={18} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -471,82 +346,62 @@ export default function App() {
           <div className="sticky top-0 bg-white/90 backdrop-blur-xl p-6 border-b z-[70] flex items-center justify-between shadow-sm">
             <button onClick={() => setView('dashboard')} className="p-3 bg-zinc-100 text-zinc-500 rounded-2xl"><ArrowLeft size={20} /></button>
             <div className="text-center">
-              <h2 className="font-black italic text-zinc-800 text-lg uppercase tracking-tighter">Edição de Orçamento</h2>
+              <h2 className="font-black italic text-zinc-800 text-lg uppercase tracking-tighter">Proposta Comercial</h2>
               <p className="text-[10px] font-bold text-yellow-500 tracking-widest">{currentProposal.number}</p>
             </div>
-            <button onClick={handleSave} className="bg-zinc-900 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-lg">SALVAR</button>
+            <button onClick={handleSave} className="bg-zinc-900 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-lg uppercase">SALVAR</button>
           </div>
           
           <div className="p-6 space-y-12">
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">1</div>
-                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Identificação</h3>
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest px-1 mb-2">Dados do Cliente</h3>
+              <StableInput label="Cliente / Empresa" value={currentProposal.client} onChange={v => setCurrentProposal({...currentProposal, client: v})} placeholder="Nome completo" />
+              <div className="grid grid-cols-2 gap-4">
+                <StableInput label="Contato (A/C)" value={currentProposal.contact} onChange={v => setCurrentProposal({...currentProposal, contact: v})} placeholder="Responsável" />
+                <StableInput label="WhatsApp (Com 55)" value={currentProposal.phone} onChange={v => setCurrentProposal({...currentProposal, phone: v})} placeholder="Ex: 5511947421770" />
               </div>
-              <div className="space-y-2">
-                <StableInput label="Cliente / Razão Social" value={currentProposal.client} onChange={v => setCurrentProposal({...currentProposal, client: v})} placeholder="Ex: Maria Oliveira ou Construtora X" />
-                <div className="grid grid-cols-2 gap-4">
-                  <StableInput label="Vendedor Responsável" value={currentProposal.salesperson} onChange={v => setCurrentProposal({...currentProposal, salesperson: v})} placeholder="Seu nome" />
-                  <StableInput label="A/C (Contato)" value={currentProposal.contact} onChange={v => setCurrentProposal({...currentProposal, contact: v})} placeholder="Nome da pessoa" />
-                </div>
-                <StableInput label="WhatsApp do Cliente" value={currentProposal.phone} onChange={v => setCurrentProposal({...currentProposal, phone: v})} placeholder="(00) 00000-0000" />
-                <StableTextArea label="Local da Obra" value={currentProposal.address} onChange={v => setCurrentProposal({...currentProposal, address: v})} placeholder="Endereço onde o serviço será feito" />
+              <div className="grid grid-cols-2 gap-4">
+                <StableInput label="Vendedor" value={currentProposal.salesperson} onChange={v => setCurrentProposal({...currentProposal, salesperson: v})} placeholder="Seu nome" />
+                <StableInput label="Prazo de Entrega" value={currentProposal.delivery} onChange={v => setCurrentProposal({...currentProposal, delivery: v})} placeholder="Ex: 3 dias úteis" />
               </div>
+              <StableInput label="Forma de Pagamento" value={currentProposal.payment} onChange={v => setCurrentProposal({...currentProposal, payment: v})} placeholder="Ex: Boleto 10 DDL" />
+              <StableTextArea label="Endereço da Obra" value={currentProposal.address} onChange={v => setCurrentProposal({...currentProposal, address: v})} placeholder="Local do serviço" />
             </section>
 
-            <section>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">2</div>
-                  <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Escopo Técnico</h3>
-                </div>
-                <button onClick={() => setCurrentProposal({ ...currentProposal, items: [...currentProposal.items, { id: Math.random().toString(), desc: '', qty: 1, unit: 0, total: 0 }] })} className="bg-yellow-400 text-zinc-900 px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-md flex items-center gap-2">
-                  <Plus size={14} strokeWidth={4} /> ITEM
-                </button>
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest px-1">Itens do Orçamento</h3>
+                <button onClick={() => setCurrentProposal({ ...currentProposal, items: [...currentProposal.items, { id: Math.random().toString(), desc: '', qty: 1, unit: 0, total: 0 }] })} className="bg-yellow-400 text-zinc-900 p-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase"><Plus size={14} /> Adicionar</button>
               </div>
-
-              <div className="space-y-6">
-                {currentProposal.items.map((item, idx) => (
-                  <div key={item.id} className="bg-white p-6 rounded-[2rem] border border-zinc-200 relative shadow-sm">
-                    {currentProposal.items.length > 1 && (
-                      <button onClick={() => setCurrentProposal({ ...currentProposal, items: currentProposal.items.filter(i => i.id !== item.id) })} className="absolute -top-3 -right-3 bg-red-500 text-white p-2 rounded-full shadow-lg"><X size={16} /></button>
-                    )}
-                    <StableTextArea label={`Descrição do Serviço #${idx+1}`} value={item.desc} onChange={v => {
-                      const n = currentProposal.items.map(i => i.id === item.id ? {...i, desc: v} : i);
+              {currentProposal.items.map((item, idx) => (
+                <div key={item.id} className="bg-white p-6 rounded-[2rem] border border-zinc-200 relative shadow-sm">
+                  {currentProposal.items.length > 1 && (
+                    <button onClick={() => setCurrentProposal({ ...currentProposal, items: currentProposal.items.filter(i => i.id !== item.id) })} className="absolute -top-3 -right-3 bg-red-500 text-white p-2 rounded-full shadow-lg"><X size={16} /></button>
+                  )}
+                  <StableTextArea label={`Serviço #${idx+1}`} value={item.desc} onChange={v => {
+                    const n = currentProposal.items.map(i => i.id === item.id ? {...i, desc: v} : i);
+                    setCurrentProposal({...currentProposal, items: n});
+                  }} placeholder="O que será feito?" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <StableInput label="Qtd" type="number" value={item.qty} onChange={v => {
+                      const q = parseFloat(v) || 0;
+                      const n = currentProposal.items.map(i => i.id === item.id ? {...i, qty: q, total: q * i.unit} : i);
                       setCurrentProposal({...currentProposal, items: n});
-                    }} placeholder="Ex: Manutenção em quadro trifásico..." rows={4} />
-                    <div className="grid grid-cols-2 gap-4 mt-2">
-                      <StableInput label="Quantidade" type="number" value={item.qty} onChange={v => {
-                        const q = parseFloat(v) || 0;
-                        const n = currentProposal.items.map(i => i.id === item.id ? {...i, qty: q, total: q * i.unit} : i);
-                        setCurrentProposal({...currentProposal, items: n});
-                      }} />
-                      <StableInput label="Preço Unit. (R$)" type="number" value={item.unit} onChange={v => {
-                        const u = parseFloat(v) || 0;
-                        const n = currentProposal.items.map(i => i.id === item.id ? {...i, unit: u, total: item.qty * u} : i);
-                        setCurrentProposal({...currentProposal, items: n});
-                      }} />
-                    </div>
+                    }} />
+                    <StableInput label="Unit (R$)" type="number" value={item.unit} onChange={v => {
+                      const u = parseFloat(v) || 0;
+                      const n = currentProposal.items.map(i => i.id === item.id ? {...i, unit: u, total: item.qty * u} : i);
+                      setCurrentProposal({...currentProposal, items: n});
+                    }} />
                   </div>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 bg-zinc-900 rounded-xl flex items-center justify-center text-yellow-400 font-black">3</div>
-                <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Condições Finais</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StableInput label="Prazo (Entrega)" value={currentProposal.delivery} onChange={v => setCurrentProposal({...currentProposal, delivery: v})} placeholder="Ex: 5 dias" />
-                <StableInput label="Pagamento" value={currentProposal.payment} onChange={v => setCurrentProposal({...currentProposal, payment: v})} placeholder="Ex: À vista ou 30 dias" />
-              </div>
+                </div>
+              ))}
             </section>
           </div>
 
           <div className="fixed bottom-24 left-6 right-6 p-6 bg-zinc-900 text-white flex items-center justify-between rounded-[2rem] shadow-2xl z-40 border-t-4 border-yellow-400">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-yellow-400 uppercase">Total Geral</span>
+              <span className="text-[9px] font-black text-yellow-400 uppercase">Total Estimado</span>
               <span className="text-2xl font-black italic tracking-tighter">{formatCurrency(currentProposal.items.reduce((a,b)=>a+b.total,0))}</span>
             </div>
             <button onClick={handleSave} className="bg-yellow-400 text-zinc-900 px-8 py-4 rounded-2xl font-black shadow-xl uppercase text-xs">FINALIZAR</button>
@@ -558,64 +413,62 @@ export default function App() {
         <div className="min-h-screen bg-zinc-900 flex flex-col items-center pb-32 duration-500 animate-in fade-in">
           <div className="w-full bg-black/80 backdrop-blur-md p-6 flex justify-between items-center sticky top-0 z-[70] border-b border-white/5">
             <button onClick={() => setView('dashboard')} className="text-white font-black flex items-center gap-2 bg-white/5 px-5 py-2.5 rounded-xl transition-colors hover:bg-white/10"><ArrowLeft size={18} /> VOLTAR</button>
-            <div className="flex items-center gap-2">
-              <button onClick={() => shareViaWhatsApp(currentProposal)} className="bg-green-600 text-white px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-green-700 transition-all"><MessageCircle size={16} /> WHATSAPP</button>
-              <button onClick={() => downloadProposalFile(currentProposal)} className="bg-white text-zinc-900 px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-zinc-100 transition-all"><Download size={16} /> SALVAR</button>
-              <button onClick={() => printProposal(currentProposal)} className="bg-yellow-400 text-zinc-900 px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-yellow-500 transition-all"><Printer size={16} /> PDF / PRINT</button>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <button onClick={() => sendFollowUpMessage(currentProposal)} className="bg-green-600 text-white px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-green-700 transition-all whitespace-nowrap"><MessageCircle size={16} /> WHATSAPP</button>
+              <button disabled={generating} onClick={() => handleSharePDF(currentProposal, 'share')} className="bg-blue-500 text-white px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-blue-600 transition-all whitespace-nowrap">
+                {generating ? <Loader2 size={16} className="animate-spin" /> : <Share size={16} />} COMPARTILHAR
+              </button>
+              <button disabled={generating} onClick={() => handleSharePDF(currentProposal, 'save')} className="bg-white text-zinc-900 px-5 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-xl hover:bg-zinc-100 transition-all whitespace-nowrap">
+                <Download size={16} /> SALVAR
+              </button>
             </div>
           </div>
           
           <div className="p-4 w-full max-w-2xl mt-4">
-            <div className="bg-white rounded-[3rem] p-10 shadow-2xl flex flex-col items-center border-t-[10px] border-yellow-400 relative overflow-hidden">
-               <div className="mb-8 flex flex-col items-center text-center">
+            <div className="bg-white rounded-[3rem] p-10 shadow-2xl flex flex-col items-center border-t-[10px] border-yellow-400 relative">
+               <div className="mb-8 text-center flex flex-col items-center">
                  <div className="mb-4 bg-zinc-900 p-4 rounded-3xl shadow-lg"><RaimundixLogo size={80} /></div>
-                 <h2 className="text-4xl font-black italic tracking-tighter text-zinc-900 uppercase leading-none">RAIMUNDIX</h2>
-                 <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mt-2 text-center">Soluções em Elétrica</p>
+                 <h2 className="text-4xl font-black italic tracking-tighter text-zinc-900 uppercase">RAIMUNDIX</h2>
+                 <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mt-2">Soluções em Elétrica</p>
                </div>
-
-               <div className="w-full space-y-6 border-t-2 border-zinc-100 pt-8">
-                 <div className="flex justify-between items-start">
+               <div className="w-full space-y-6 border-t-2 border-zinc-50 pt-8">
+                 <div className="flex justify-between">
                    <div className="flex-1 overflow-hidden pr-4">
                      <p className="text-[9px] font-black text-zinc-300 uppercase">Cliente</p>
-                     <p className="text-xl font-black italic text-zinc-900 uppercase leading-tight truncate">{currentProposal.client}</p>
-                     <div className="flex items-center gap-2 mt-2">
-                        <UserCheck size={12} className="text-yellow-500" />
-                        <span className="text-[9px] font-black uppercase text-zinc-400">Vendedor: {currentProposal.salesperson || 'Direto'}</span>
-                     </div>
+                     <p className="text-xl font-black italic text-zinc-900 uppercase truncate leading-none">{currentProposal.client}</p>
+                     <p className="text-[9px] font-black uppercase text-zinc-400 mt-2">A/C: {currentProposal.contact || 'Responsável'}</p>
+                     <p className="text-[9px] font-black uppercase text-zinc-400">Vendedor: {currentProposal.salesperson || 'Direto'}</p>
                    </div>
                    <div className="text-right">
-                     <p className="text-[9px] font-black text-zinc-300 uppercase">Nº Orçamento</p>
-                     <p className="text-xl font-black italic text-yellow-600 leading-tight">{currentProposal.number}</p>
-                     <p className="text-[9px] font-bold text-zinc-400 mt-1 uppercase">{currentProposal.date}</p>
+                     <p className="text-[9px] font-black text-zinc-300 uppercase">Orçamento</p>
+                     <p className="text-xl font-black italic text-yellow-600 leading-none">{currentProposal.number}</p>
+                     <p className="text-[9px] font-bold text-zinc-400 mt-1">{currentProposal.date}</p>
                    </div>
                  </div>
-
                  <div className="bg-zinc-900 rounded-[2rem] p-8 text-center shadow-xl border-b-4 border-yellow-400">
-                    <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Investimento Total da Proposta</h3>
-                    <p className="text-4xl font-black italic text-yellow-400 leading-none tracking-tighter">{formatCurrency(currentProposal.items.reduce((a,b)=>a+b.total,0))}</p>
+                    <h3 className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Investimento Total</h3>
+                    <p className="text-4xl font-black italic text-yellow-400 tracking-tighter">{formatCurrency(currentProposal.items.reduce((a,b)=>a+b.total,0))}</p>
                  </div>
-
                  <div className="space-y-4">
-                   <p className="text-[9px] font-black text-zinc-300 uppercase border-b pb-2 tracking-widest">Resumo dos Itens</p>
+                   <p className="text-[9px] font-black text-zinc-300 uppercase border-b pb-2 tracking-widest">Itens Detalhados</p>
                    {currentProposal.items.map(i => (
                      <div key={i.id} className="flex gap-4 items-start bg-slate-50 p-4 rounded-2xl border border-zinc-100">
                        <span className="bg-zinc-900 text-yellow-400 font-black text-[10px] px-2 py-0.5 rounded-lg h-5 flex items-center">{i.qty}x</span>
                        <div className="flex-1">
                          <p className="text-xs font-bold text-zinc-700 leading-relaxed whitespace-pre-wrap">{i.desc}</p>
-                         <p className="text-[10px] font-black text-zinc-400 mt-1 uppercase">{formatCurrency(i.total)}</p>
+                         <p className="text-[10px] font-black text-zinc-400 mt-1">{formatCurrency(i.total)}</p>
                        </div>
                      </div>
                    ))}
                  </div>
-
-                 <div className="grid grid-cols-2 gap-4 border-t pt-6">
-                   <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
+                 <div className="grid grid-cols-2 gap-4 border-t border-zinc-100 pt-6">
+                   <div className="bg-slate-50 p-4 rounded-2xl">
                      <p className="text-[9px] font-black text-zinc-300 uppercase mb-1">Prazo</p>
-                     <p className="text-xs font-bold text-zinc-800">{currentProposal.delivery}</p>
+                     <p className="text-xs font-bold text-zinc-800 uppercase">{currentProposal.delivery}</p>
                    </div>
-                   <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
-                     <p className="text-[9px] font-black text-zinc-300 uppercase mb-1 text-right">Pagamento</p>
-                     <p className="text-xs font-bold text-zinc-800 text-right">{currentProposal.payment}</p>
+                   <div className="bg-slate-50 p-4 rounded-2xl">
+                     <p className="text-[9px] font-black text-zinc-300 uppercase mb-1">Pagamento</p>
+                     <p className="text-xs font-bold text-zinc-800 uppercase">{currentProposal.payment}</p>
                    </div>
                  </div>
                </div>
