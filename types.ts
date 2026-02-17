@@ -1,4 +1,6 @@
 
+export type ProposalStatus = 'aberto' | 'em_andamento' | 'fechado' | 'cancelado';
+
 export interface ProposalItem {
   id: string;
   desc: string;
@@ -15,10 +17,13 @@ export interface Proposal {
   contact: string;
   phone: string;
   address: string;
+  salesperson: string; // Novo campo: Vendedor / Responsável Comercial
   items: ProposalItem[];
   delivery: string;
   payment: string;
+  status: ProposalStatus;
+  lastFollowUp: number;
   createdAt: number;
 }
 
-export type ViewState = 'dashboard' | 'form' | 'preview';
+export type ViewState = 'dashboard' | 'form' | 'preview' | 'management';
